@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Photo Gallery</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <div id="app">
+    <div class="container mx-auto py-8">
+      <h1 class="text-3xl font-bold mb-8">My Photo Gallery</h1>
+
+      <!-- 画像アップロードフォーム -->
+      <div class="mb-8">
+        <h2 class="text-2xl font-bold mb-4">Upload Image</h2>
+        <div class="flex items-center">
+          <input type="file" class="px-4 py-2 border border-gray-300 rounded-md mr-4" accept=".jpg,.png" @change="handleFileUpload">
+          <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded" @click="uploadFile">
+            Upload
+          </button>
+        </div>
+        <div v-if="uploadProgress !== null" class="mt-4">
+          <div class="bg-gray-200 rounded-full h-4 w-full">
+            <div class="bg-blue-500 rounded-full h-4" :style="`width: ${uploadProgress}%`"></div>
+          </div>
+          <div class="text-sm text-gray-600">Uploading... {{ uploadProgress }}%</div>
+        </div>
+        <div v-if="uploadMessage" class="mt-4 text-green-500">{{ uploadMessage }}</div>
+        <div v-if="uploadError" class="mt-4 text-red-500">{{ uploadError }}</div>
+      </div>
+
+      <!-- 投稿データ一覧 -->
+      <div>
+        <h2 class="text-2xl font-bold mb-4">Photo Gallery</h2>
+        <div v-if="isLoading" class="flex justify-center items-center h-40">
+          <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-gray-900"></div>
+        </div>
+        <div v-else-if="posts.length === 0" class="text-gray-600">No posts found.</div>
+        <div v-else class="space-y-4">
+          <div v-for="post in posts" :key="post.datetime" class="border-b pb-4">
+            <div class="flex items-center justify-between">
+              <div class="text-sm text-gray-600">{{ formatDate(post.datetime) }}</div>
+              <div>
+                <span v-for="tag in post.tags" :key="tag" class="bg-gray-200 text-gray-600 px-2 py-1 rounded-full text-xs mr-2 cursor-pointer" @click="filterByTag(tag)">{{ tag }}</span>
+              </div>
+            </div>
+            <div class="flex items-center">
+              <img :src="`(CDN)/${post.object}`" alt="" class="w-32 h-32 object-cover mr-4">
+              <div>{{ post.object }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="mt-4 flex items-center">
+          <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mr-4" @click="loadPosts">
+            <span v-if="currentTag">Reload (tag: {{ currentTag }})</span>
+            <span v-else>Reload</span>
+          </button>
+          <div class="text-gray-600">Auto reload every 10 seconds</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          file: null,
+          uploadProgress: null,
+          uploadMessage: '',
+          uploadError: '',
+          posts: [],
+          isLoading: false,
+          currentTag: null,
+          autoReloadInterval: null
+        };
+      },
+      mounted() {
+        this.loadPosts();
+        this.startAutoReload();
+      },
+      methods: {
+        handleFileUpload(event) {
+          this.file = event.target.files[0];
+        },
+        async uploadFile() {
+          if (!this.file || (!this.file.type.includes('image/jpeg') && !this.file.type.includes('image/png'))) {
+            this.uploadError = 'Please select a JPG or PNG file.';
+            return;
+          }
+
+          this.uploadProgress = 0;
+          this.uploadMessage = '';
+          this.uploadError = '';
+
+          try {
+            const response = await fetch(`(API)?filename=${this.file.name}`);
+            const data = await response.json();
+            const { presigned_url } = data;
+
+            await fetch(presigned_url, {
+              method: 'PUT',
+              body: this.file,
+              onUploadProgress: (progressEvent) => {
+                this.uploadProgress = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+              }
+            });
+
+            this.uploadMessage = 'File uploaded successfully!';
+            this.file = null;
+          } catch (error) {
+            this.uploadError = 'Error uploading file. Please try again.';
+            console.error(error);
+          }
+        },
+        async loadPosts(tag = null) {
+          this.isLoading = true;
+          this.currentTag = tag;
+
+          try {
+            const response = await fetch(`(API)${tag ? `?tag=${tag}` : ''}`);
+            const data = await response.json();
+            this.posts = data.items;
+          } catch (error) {
+            console.error('Error fetching posts:', error);
+          } finally {
+            this.isLoading = false;
+          }
+        },
+        formatDate(timestamp) {
+          return dayjs(timestamp).format('YYYY/MM/DD HH:mm:ss');
+        },
+        filterByTag(tag) {
+          this.loadPosts(tag);
+        },
+        startAutoReload() {
+          this.autoReloadInterval = setInterval(() => {
+            this.loadPosts(this.currentTag);
+          }, 10000);
+        }
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

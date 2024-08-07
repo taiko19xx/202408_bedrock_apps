@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI アシスタント会話</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body class="bg-gray-100">
+    <div id="app" class="container mx-auto p-4 flex flex-col h-screen">
+        <h1 class="text-2xl font-bold mb-4">AI アシスタント会話</h1>
+        <div class="flex-grow overflow-y-auto mb-4 bg-white rounded-lg shadow p-4">
+            <div v-for="(message, index) in conversation.messages" :key="index" class="mb-4">
+                <div :class="{'text-right': message.role === 'user', 'text-left': message.role === 'assistant'}">
+                    <div :class="{'inline-block bg-blue-200 rounded-lg p-2 max-w-3/4': message.role === 'user', 'inline-block bg-gray-200 rounded-lg p-2 max-w-3/4': message.role === 'assistant'}">
+                        <p v-for="(content, contentIndex) in message.content" :key="contentIndex">
+                            <span v-for="(line, lineIndex) in content.text.split('\n')" :key="lineIndex">
+                                {{ line }}
+                                <br v-if="lineIndex < content.text.split('\n').length - 1">
+                            </span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div v-if="isLoading" class="text-center">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                <p class="mt-2 text-gray-600">処理中...</p>
+            </div>
+        </div>
+        <div class="flex">
+            <textarea v-model="userInput" class="flex-grow p-2 border rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500" rows="3" placeholder="メッセージを入力..."></textarea>
+            <button @click="sendMessage" :disabled="isLoading" class="bg-blue-500 text-white px-4 py-2 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-blue-300 disabled:cursor-not-allowed">送信</button>
+            <button @click="resetConversation" :disabled="isLoading" class="bg-red-500 text-white px-4 py-2 rounded-r-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:bg-red-300 disabled:cursor-not-allowed">初期化</button>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, watch } = Vue
+
+        createApp({
+            setup() {
+                const conversation = ref({ messages: [] })
+                const userInput = ref('')
+                const isLoading = ref(false)
+
+                const loadConversation = () => {
+                    const savedConversation = localStorage.getItem('conversation')
+                    if (savedConversation) {
+                        conversation.value = JSON.parse(savedConversation)
+                    }
+                }
+
+                const saveConversation = () => {
+                    localStorage.setItem('conversation', JSON.stringify(conversation.value))
+                }
+
+                const sendMessage = async () => {
+                    if (!userInput.value.trim() || isLoading.value) return
+
+                    isLoading.value = true
+
+                    conversation.value.messages.push({
+                        role: 'user',
+                        content: [
+                            {
+                                type: 'text',
+                                text: userInput.value
+                            }
+                        ]
+                    })
+
+                    userInput.value = ''
+
+                    try {
+                        const response = await axios.post('(API)', conversation.value)
+                        
+                        conversation.value.messages.push({
+                            role: 'assistant',
+                            content: response.data.response
+                        })
+                    } catch (error) {
+                        console.error('Error:', error)
+                        alert('エラーが発生しました。もう一度お試しください。')
+                    } finally {
+                        isLoading.value = false
+                    }
+                }
+
+                const resetConversation = () => {
+                    if (isLoading.value) return
+
+                    if (confirm('会話履歴を初期化してもよろしいですか？')) {
+                        conversation.value = { messages: [] }
+                        localStorage.removeItem('conversation')
+                    }
+                }
+
+                onMounted(() => {
+                    loadConversation()
+                })
+
+                watch(conversation, saveConversation, { deep: true })
+
+                return {
+                    conversation,
+                    userInput,
+                    isLoading,
+                    sendMessage,
+                    resetConversation
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>

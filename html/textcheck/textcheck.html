@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文章校正サイト</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+        .preserve-whitespace {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .preserve-whitespace span {
+            white-space: normal;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div id="app" class="container mx-auto p-4">
+        <h1 class="text-3xl font-bold mb-4">文章校正サイト</h1>
+        <div class="mb-8">
+            <textarea v-model="text" placeholder="文章を入力" class="w-full p-2 border rounded" rows="10" required></textarea>
+            <input v-model="style" placeholder="文章のスタイルを入力" class="w-full mt-2 p-2 border rounded" required>
+            <button @click="submitText" class="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">送信</button>
+        </div>
+        <div v-if="result" class="bg-white p-4 rounded shadow">
+            <h2 class="text-xl font-bold mb-2">校正結果</h2>
+            <div class="mb-4 preserve-whitespace" v-html="highlightedText"></div>
+            <div class="flex items-center justify-center my-4">
+                <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+                </svg>
+            </div>
+            <pre class="bg-gray-100 p-4 rounded overflow-x-auto">{{ result.result.body }}</pre>
+        </div>
+        <div v-if="loading" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+            <div class="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-white"></div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed } = Vue
+
+        createApp({
+            setup() {
+                const text = ref('')
+                const style = ref('')
+                const result = ref(null)
+                const loading = ref(false)
+                const submittedText = ref('')
+
+                const submitText = async () => {
+                    if (!text.value || !style.value) {
+                        alert('すべてのフィールドを入力してください。')
+                        return
+                    }
+
+                    loading.value = true
+                    submittedText.value = text.value
+                    try {
+                        const response = await axios.post('(API)', {
+                            body: text.value,
+                            style: style.value
+                        })
+                        result.value = response.data
+                    } catch (error) {
+                        console.error('Error:', error)
+                        alert('エラーが発生しました。')
+                    } finally {
+                        loading.value = false
+                    }
+                }
+
+                const highlightedText = computed(() => {
+                    if (!result.value) return ''
+                    let highlightedText = submittedText.value
+                    result.value.result.compose.forEach((item, index) => {
+                        const escapedPart = item.part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                        highlightedText = highlightedText.replace(
+                            new RegExp(escapedPart, 'g'),
+                            `<span class="bg-yellow-200 relative group inline-block">
+                                ${item.part}
+                                <span class="absolute hidden group-hover:block bg-gray-800 text-white text-sm rounded p-2 bottom-full mb-1 left-0 w-64 z-10">
+                                    理由: ${item.reason}<br>
+                                    結果: ${item.result}
+                                </span>
+                            </span>`
+                        )
+                    })
+                    return highlightedText
+                })
+
+                return {
+                    text,
+                    style,
+                    result,
+                    loading,
+                    submitText,
+                    highlightedText
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>

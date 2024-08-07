@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Translation App</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.16/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body>
+  <div id="app" class="bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="bg-white shadow-lg rounded-lg w-full max-w-lg p-6">
+      <div class="form-section">
+        <textarea v-model="message" placeholder="Enter text here" rows="5" class="w-full border-gray-300 rounded-md p-3 focus:ring-blue-500 focus:border-blue-500"></textarea>
+        <div class="language-select mt-4">
+          <select v-model="selectedLanguages" multiple class="w-full border-gray-300 rounded-md p-3 focus:ring-blue-500 focus:border-blue-500">
+            <option v-for="(lang, index) in languageCodes" :key="index" :value="lang.code">{{ lang.code }} {{ lang.emoji }}</option>
+          </select>
+        </div>
+        <button @click="submitTranslation" :disabled="message.trim() === '' || selectedLanguages.length === 0" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md mt-4 block mx-auto">
+          Translate
+        </button>
+        <div v-if="isLoading" class="mt-4">
+          <div class="bg-gray-200 rounded-full h-4 overflow-hidden">
+            <div class="bg-blue-500 h-full" :style="`width: ${(progress * 100) + '%'}`"></div>
+          </div>
+          <div class="text-gray-500 text-sm mt-2">{{ progress * 100 }}% | Translating...</div>
+        </div>
+      </div>
+
+      <div class="result-section mt-6">
+        <div class="translation-item bg-gray-100 rounded-md p-4 mb-4" v-for="(result, index) in translationResults" :key="index">
+          <div class="timestamp text-gray-500 text-sm mb-2">{{ result.timestamp }}</div>
+          <div class="languages flex flex-col">
+            <div v-for="(lang, langIndex) in result.messages" :key="langIndex">
+              <p class="flex items-center"><span class="mr-2">{{ languageCodes.find(l => l.code === langIndex).emoji }}</span> {{ lang }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          message: '',
+          selectedLanguages: [],
+          translationResults: [],
+          languageCodes: [
+            { code: 'en', emoji: '🇬🇧' },
+            { code: 'es', emoji: '🇪🇸' },
+            { code: 'fr', emoji: '🇫🇷' },
+            { code: 'de', emoji: '🇩🇪' },
+            { code: 'ja', emoji: '🇯🇵' },
+            { code: 'zh', emoji: '🇨🇳' },
+            { code: 'it', emoji: '🇮🇹' },
+            { code: 'pt', emoji: '🇵🇹' },
+            { code: 'ru', emoji: '🇷🇺' },
+            { code: 'ar', emoji: '🇦🇪' },
+            { code: 'ko', emoji: '🇰🇷' },
+            { code: 'sv', emoji: '🇸🇪' },
+            { code: 'nl', emoji: '🇳🇱' },
+            { code: 'pl', emoji: '🇵🇱' },
+            { code: 'tr', emoji: '🇹🇷' },
+            { code: 'cs', emoji: '🇨🇿' },
+            { code: 'el', emoji: '🇬🇷' },
+            { code: 'hu', emoji: '🇭🇺' },
+            { code: 'ro', emoji: '🇷🇴' },
+            { code: 'id', emoji: '🇮🇩' },
+          ],
+          isLoading: false,
+          progress: 0,
+        };
+      },
+      mounted() {
+        this.loadTranslationResults();
+      },
+      methods: {
+        async submitTranslation() {
+          this.isLoading = true;
+          this.progress = 0;
+
+          const data = {
+            message: this.message,
+            languages: this.selectedLanguages,
+          };
+
+          const response = await fetch('(API)', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+            onProgress: (event) => {
+              this.progress = event.loaded / event.total;
+            },
+          });
+
+          this.isLoading = false;
+
+          const result = await response.json();
+          const timestamp = dayjs().format('YYYY-MM-DD HH:mm:ss');
+          this.translationResults.unshift({ timestamp, messages: result.messages });
+          this.saveTranslationResults();
+          this.message = '';
+        },
+        loadTranslationResults() {
+          const storedResults = localStorage.getItem('translationResults');
+          if (storedResults) {
+            this.translationResults = JSON.parse(storedResults);
+          }
+        },
+        saveTranslationResults() {
+          localStorage.setItem('translationResults', JSON.stringify(this.translationResults));
+        },
+      },
+    }).mount('#app');
+  </script>
+</body>
+</html>
